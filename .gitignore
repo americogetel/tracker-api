@@ -1,0 +1,16 @@
+# Ambiente Virtual
+.venv/
+env/
+venv/
+ENV/
+
+# Banco de Dados (Para não subir seus usuários de teste)
+*.db
+*.sqlite3
+
+# Arquivos de Configuração (Segurança!)
+.env
+
+# Cache do Python
+__pycache__/
+*.pyc

@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Teste FastAPI Auth (Cookies Edition)</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        max-width: 500px;
+        margin: 50px auto;
+        line-height: 1.6;
+        background-color: #f4f4f9;
+      }
+      input {
+        display: block;
+        width: 100%;
+        margin: 10px 0;
+        padding: 10px;
+        box-sizing: border-box;
+      }
+      button {
+        padding: 10px 20px;
+        cursor: pointer;
+        background: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        width: 100%;
+        margin-top: 5px;
+      }
+      button:hover {
+        background: #0056b3;
+      }
+      .box {
+        border: 1px solid #ccc;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        background: white;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      #resultado {
+        background: #eee;
+        padding: 10px;
+        border-radius: 4px;
+        overflow-x: auto;
+        min-height: 40px;
+      }
+      #mensagem {
+        color: #d9534f;
+        font-weight: bold;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <p id="mensagem"></p>
+
+    <div class="box">
+      <h3>Login</h3>
+      <input type="email" id="email" placeholder="E-mail" />
+      <input type="password" id="senha" placeholder="Senha" />
+      <button onclick="fazerLogin()">Entrar</button>
+    </div>
+
+    <div class="box">
+      <h3>Área Restrita</h3>
+      <button onclick="acessarHome()">Acessar Home (Rota Protegida)</button>
+      <button onclick="fazerLogout()" style="background: #dc3545">Sair</button>
+      <p>Resposta da API:</p>
+      <pre id="resultado">Nenhum dado carregado.</pre>
+    </div>
+
+    <div class="box">
+      <h3>Criar Conta</h3>
+      <input type="email" id="reg-email" placeholder="E-mail" />
+      <input type="password" id="reg-senha" placeholder="Senha" />
+      <button onclick="fazerRegistro()" style="background: #28a745">
+        Cadastrar
+      </button>
+    </div>
+
+    <div class="box">
+      <h3>Recuperação</h3>
+      <input type="email" id="rec-email" placeholder="Seu e-mail" />
+      <button onclick="pedirRecuperacao()" style="background: #6c757d">
+        Enviar Link no Console
+      </button>
+    </div>
+
+    <div class="box" style="border-color: #ffc107">
+      <h3>Redefinir Senha (Finalizar Processo)</h3>
+      <p style="font-size: 0.8em; color: #666">
+        Cole o token que apareceu no terminal do VS Code:
+      </p>
+      <input type="text" id="reset-token" placeholder="Cole o Token aqui" />
+      <input
+        type="password"
+        id="nova-senha"
+        placeholder="Nova Senha (mín. 8 caracteres)"
+      />
+      <button
+        onclick="finalizarReset()"
+        style="background: #ffc107; color: black"
+      >
+        Alterar Senha Agora
+      </button>
+    </div>
+
+    <script>
+      const API_URL = "http://127.0.0.1:8000";
+
+      // 1. REGISTRO
+      async function fazerRegistro() {
+        const email = document.getElementById("reg-email").value;
+        const senha = document.getElementById("reg-senha").value;
+
+        const response = await fetch(`${API_URL}/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, senha }),
+        });
+        const data = await response.json();
+        alert(response.ok ? "Conta criada com sucesso!" : data.detail);
+      }
+
+      // 2. LOGIN
+      async function fazerLogin() {
+        const formData = new FormData();
+        formData.append("username", document.getElementById("email").value);
+        formData.append("password", document.getElementById("senha").value);
+
+        const response = await fetch(`${API_URL}/login`, {
+          method: "POST",
+          body: formData,
+          credentials: "include",
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+          alert("Login realizado! O cookie foi salvo.");
+        } else {
+          document.getElementById("mensagem").innerText = data.detail;
+        }
+      }
+
+      // 3. ACESSAR HOME
+      async function acessarHome() {
+        const response = await fetch(`${API_URL}/home`, {
+          method: "GET",
+          credentials: "include",
+        });
+
+        const data = await response.json();
+        document.getElementById("resultado").innerText = JSON.stringify(
+          data,
+          null,
+          2,
+        );
+      }
+
+      // 4. LOGOUT
+      async function fazerLogout() {
+        const response = await fetch(`${API_URL}/logout`, {
+          method: "POST",
+          credentials: "include",
+        });
+        const data = await response.json();
+        alert(data.msg || "Logout realizado.");
+        location.reload();
+      }
+
+      // 5. ESQUECI SENHA (Atenção: Fechamos a chave aqui embaixo!)
+      async function pedirRecuperacao() {
+        const email = document.getElementById("rec-email").value;
+        const response = await fetch(`${API_URL}/esqueci-minha-senha`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        alert("Comando enviado! Verifique o console do VS Code.");
+      } // <--- ESSA CHAVE ESTAVA FALTANDO OU NO LUGAR ERRADO
+
+      // 6. FINALIZAR RESET DE SENHA (Agora ela está acessível ao botão!)
+      async function finalizarReset() {
+        const token = document.getElementById("reset-token").value;
+        const nova_senha = document.getElementById("nova-senha").value;
+
+        if (!token || !nova_senha) {
+          alert("Preencha o token e a nova senha!");
+          return;
+        }
+
+        const response = await fetch(`${API_URL}/resetar-senha`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: token, nova_senha: nova_senha }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          alert("Sucesso! Sua senha foi alterada. Tente fazer login agora.");
+          document.getElementById("reset-token").value = "";
+          document.getElementById("nova-senha").value = "";
+        } else {
+          alert("Erro: " + (data.detail || "Não foi possível resetar"));
+        }
+      }
+    </script>
+  </body>
+</html>
