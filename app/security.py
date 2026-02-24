@@ -26,7 +26,11 @@ def verificar_senha(senha_pura, senha_hash):
 def criar_token_acesso(dados: dict):
     para_codificar = dados.copy()
     expiracao = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    para_codificar.update({"exp": expiracao})
+    
+    para_codificar.update({
+        "exp": expiracao,
+        "version": dados.get("version")
+    })
     return jwt.encode(para_codificar, SECRET_KEY, algorithm=ALGORITHM)
 
 def criar_token_recuperacao(email: str):
@@ -43,7 +47,7 @@ def calcular_tempo_bloqueio(tentativas: int):
     if tentativas < 3:
         return None
     if tentativas == 3:
-        return datetime.utcnow() + timedelta(minute=1)
+        return datetime.utcnow() + timedelta(minutes=1)
     if tentativas == 4:
-        return datetime.utcnow() + timedelta(minute=5)
-    return datetime.utcnow() + timedelta(minute=30)
+        return datetime.utcnow() + timedelta(minutes=5)
+    return datetime.utcnow() + timedelta(minutes=30)

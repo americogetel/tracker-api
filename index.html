@@ -2,60 +2,96 @@
 <html lang="pt-br">
   <head>
     <meta charset="UTF-8" />
-    <title>Teste FastAPI Auth (Cookies Edition)</title>
+    <title>FastAPI Auth Pro</title>
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css"
+    />
     <style>
       body {
-        font-family: sans-serif;
-        max-width: 500px;
-        margin: 50px auto;
-        line-height: 1.6;
-        background-color: #f4f4f9;
+        font-family: "Segoe UI", sans-serif;
+        max-width: 600px;
+        margin: 40px auto;
+        background-color: #eef2f7;
+        color: #333;
+      }
+      .box {
+        border: none;
+        padding: 25px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        background: white;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+      }
+      h3 {
+        margin-top: 0;
+        color: #2c3e50;
+        border-bottom: 2px solid #eee;
+        padding-bottom: 10px;
+      }
+      h4 {
+        margin-bottom: 10px;
+        color: #555;
       }
       input {
         display: block;
         width: 100%;
-        margin: 10px 0;
-        padding: 10px;
+        margin: 12px 0;
+        padding: 12px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
         box-sizing: border-box;
       }
       button {
-        padding: 10px 20px;
+        padding: 12px;
         cursor: pointer;
         background: #007bff;
         color: white;
         border: none;
-        border-radius: 4px;
+        border-radius: 6px;
         width: 100%;
-        margin-top: 5px;
+        font-weight: bold;
+        transition: 0.3s;
       }
       button:hover {
         background: #0056b3;
-      }
-      .box {
-        border: 1px solid #ccc;
-        padding: 20px;
-        border-radius: 8px;
-        margin-bottom: 20px;
-        background: white;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        transform: translateY(-1px);
       }
       #resultado {
-        background: #eee;
-        padding: 10px;
-        border-radius: 4px;
+        background: #2d3436;
+        color: #dfe6e9;
+        padding: 15px;
+        border-radius: 6px;
         overflow-x: auto;
-        min-height: 40px;
+        font-size: 0.9em;
       }
-      #mensagem {
+      .admin-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+        font-size: 0.85em;
+      }
+      .admin-table th,
+      .admin-table td {
+        border: 1px solid #eee;
+        padding: 10px;
+        text-align: left;
+      }
+      .admin-table th {
+        background: #f8f9fa;
+      }
+      .status-bloqueado {
         color: #d9534f;
         font-weight: bold;
-        text-align: center;
+      }
+      .status-ok {
+        color: #28a745;
+        font-weight: bold;
       }
     </style>
   </head>
   <body>
-    <p id="mensagem"></p>
-
     <div class="box">
       <h3>Login</h3>
       <input type="email" id="email" placeholder="E-mail" />
@@ -64,67 +100,124 @@
     </div>
 
     <div class="box">
-      <h3>Área Restrita</h3>
-      <button onclick="acessarHome()">Acessar Home (Rota Protegida)</button>
-      <button onclick="fazerLogout()" style="background: #dc3545">Sair</button>
+      <h3>Área do Usuário</h3>
+      <button onclick="acessarHome()" style="background: #17a2b8">
+        Acessar Rota Protegida
+      </button>
+
+      <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee" />
+
+      <h4>Alterar Senha (Logado)</h4>
+      <input
+        type="password"
+        id="perfil-senha-atual"
+        placeholder="Senha Atual"
+      />
+      <input type="password" id="perfil-nova-senha" placeholder="Nova Senha" />
+      <input
+        type="password"
+        id="perfil-conf-senha"
+        placeholder="Repita a Nova Senha"
+      />
+      <button onclick="trocarSenhaPerfil()" style="background: #28a745">
+        Atualizar Minha Senha
+      </button>
+
+      <button
+        onclick="fazerLogout()"
+        style="background: #dc3545; margin-top: 20px"
+      >
+        Sair de Todas as Sessões
+      </button>
       <p>Resposta da API:</p>
       <pre id="resultado">Nenhum dado carregado.</pre>
+    </div>
+
+    <div class="box" style="border-left: 5px solid #6f42c1">
+      <h3>Painel do Administrador</h3>
+      <button onclick="carregarUsuarios()" style="background: #6f42c1">
+        Listar Todos os Usuários
+      </button>
+      <div id="painel-admin"></div>
     </div>
 
     <div class="box">
       <h3>Criar Conta</h3>
       <input type="email" id="reg-email" placeholder="E-mail" />
-      <input type="password" id="reg-senha" placeholder="Senha" />
+      <input
+        type="password"
+        id="reg-senha"
+        placeholder="Senha (Maiúscula, Minúscula, Número, Especial)"
+      />
       <button onclick="fazerRegistro()" style="background: #28a745">
-        Cadastrar
+        Cadastrar Novo Usuário
       </button>
     </div>
 
     <div class="box">
-      <h3>Recuperação</h3>
-      <input type="email" id="rec-email" placeholder="Seu e-mail" />
+      <h3>Recuperação de Senha</h3>
+      <input type="email" id="rec-email" placeholder="Digite seu e-mail" />
       <button onclick="pedirRecuperacao()" style="background: #6c757d">
-        Enviar Link no Console
+        Enviar Token para Console
       </button>
-    </div>
 
-    <div class="box" style="border-color: #ffc107">
-      <h3>Redefinir Senha (Finalizar Processo)</h3>
-      <p style="font-size: 0.8em; color: #666">
-        Cole o token que apareceu no terminal do VS Code:
-      </p>
-      <input type="text" id="reset-token" placeholder="Cole o Token aqui" />
+      <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee" />
+
+      <h4>Redefinir Agora</h4>
+      <input
+        type="text"
+        id="reset-token"
+        placeholder="Cole o Token do VS Code aqui"
+      />
+      <input type="password" id="nova-senha" placeholder="Nova Senha" />
       <input
         type="password"
-        id="nova-senha"
-        placeholder="Nova Senha (mín. 8 caracteres)"
+        id="confirmar-senha"
+        placeholder="Repita a Nova Senha"
       />
+
       <button
         onclick="finalizarReset()"
-        style="background: #ffc107; color: black"
+        style="background: #ffc107; color: #212529"
       >
-        Alterar Senha Agora
+        Salvar Nova Senha
       </button>
     </div>
 
+    <script
+      type="text/javascript"
+      src="https://cdn.jsdelivr.net/npm/toastify-js"
+    ></script>
     <script>
       const API_URL = "http://127.0.0.1:8000";
 
-      // 1. REGISTRO
+      function avisar(msg, cor = "#007bff") {
+        let textoFinal = msg;
+        if (Array.isArray(msg)) {
+          textoFinal = msg[0].msg;
+        }
+        Toastify({
+          text: textoFinal,
+          duration: 5000,
+          gravity: "top",
+          position: "right",
+          style: { background: cor },
+        }).showToast();
+      }
+
       async function fazerRegistro() {
         const email = document.getElementById("reg-email").value;
         const senha = document.getElementById("reg-senha").value;
-
         const response = await fetch(`${API_URL}/register`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, senha }),
         });
         const data = await response.json();
-        alert(response.ok ? "Conta criada com sucesso!" : data.detail);
+        if (response.ok) avisar("Conta criada! Tente logar.", "#28a745");
+        else avisar(data.detail, "#d9534f");
       }
 
-      // 2. LOGIN
       async function fazerLogin() {
         const formData = new FormData();
         formData.append("username", document.getElementById("email").value);
@@ -137,74 +230,112 @@
         });
 
         const data = await response.json();
-        if (response.ok) {
-          alert("Login realizado! O cookie foi salvo.");
-        } else {
-          document.getElementById("mensagem").innerText = data.detail;
-        }
+        if (response.ok)
+          avisar("Bem-vindo! Cookie de sessão salvo.", "#28a745");
+        else avisar(data.detail, "#d9534f");
       }
 
-      // 3. ACESSAR HOME
       async function acessarHome() {
         const response = await fetch(`${API_URL}/home`, {
           method: "GET",
           credentials: "include",
         });
-
         const data = await response.json();
         document.getElementById("resultado").innerText = JSON.stringify(
           data,
           null,
           2,
         );
+        if (!response.ok) avisar(data.detail || "Acesso negado!", "#d9534f");
       }
 
-      // 4. LOGOUT
-      async function fazerLogout() {
-        const response = await fetch(`${API_URL}/logout`, {
+      // --- NOVA FUNÇÃO: TROCAR SENHA LOGADO ---
+      async function trocarSenhaPerfil() {
+        const senha_atual = document.getElementById("perfil-senha-atual").value;
+        const nova_senha = document.getElementById("perfil-nova-senha").value;
+        const confirmar_nova_senha =
+          document.getElementById("perfil-conf-senha").value;
+
+        const response = await fetch(`${API_URL}/trocar-senha-perfil`, {
           method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            senha_atual,
+            nova_senha,
+            confirmar_nova_senha, // Nome deve bater com o Schemas.py
+          }),
+          credentials: "include",
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+          avisar("Senha alterada! Relogue por segurança.", "#28a745");
+          setTimeout(() => location.reload(), 2000);
+        } else {
+          avisar(data.detail, "#d9534f");
+        }
+      }
+
+      async function carregarUsuarios() {
+        const response = await fetch(`${API_URL}/admin/users`, {
+          method: "GET",
           credentials: "include",
         });
         const data = await response.json();
-        alert(data.msg || "Logout realizado.");
-        location.reload();
+        if (!response.ok) {
+          avisar(data.detail, "#d9534f");
+          return;
+        }
+
+        let html = `<table class="admin-table"><tr><th>Email</th><th>Cargo</th><th>Status</th></tr>`;
+        data.forEach((u) => {
+          const status = u.bloqueado
+            ? '<span class="status-bloqueado">Bloqueado</span>'
+            : '<span class="status-ok">Ativo</span>';
+          html += `<tr><td>${u.email}</td><td>${u.role}</td><td>${status}</td></tr>`;
+        });
+        document.getElementById("painel-admin").innerHTML = html + `</table>`;
       }
 
-      // 5. ESQUECI SENHA (Atenção: Fechamos a chave aqui embaixo!)
+      async function fazerLogout() {
+        await fetch(`${API_URL}/logout`, {
+          method: "POST",
+          credentials: "include",
+        });
+        avisar("Sessão encerrada.");
+        setTimeout(() => location.reload(), 1500);
+      }
+
       async function pedirRecuperacao() {
         const email = document.getElementById("rec-email").value;
-        const response = await fetch(`${API_URL}/esqueci-minha-senha`, {
+        await fetch(`${API_URL}/esqueci-minha-senha`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email }),
         });
-        alert("Comando enviado! Verifique o console do VS Code.");
-      } // <--- ESSA CHAVE ESTAVA FALTANDO OU NO LUGAR ERRADO
+        avisar("Verifique o terminal do VS Code!", "#6c757d");
+      }
 
-      // 6. FINALIZAR RESET DE SENHA (Agora ela está acessível ao botão!)
       async function finalizarReset() {
         const token = document.getElementById("reset-token").value;
         const nova_senha = document.getElementById("nova-senha").value;
-
-        if (!token || !nova_senha) {
-          alert("Preencha o token e a nova senha!");
-          return;
-        }
+        const confirmar_senha =
+          document.getElementById("confirmar-senha").value;
 
         const response = await fetch(`${API_URL}/resetar-senha`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token: token, nova_senha: nova_senha }),
+          body: JSON.stringify({ token, nova_senha, confirmar_senha }),
         });
 
         const data = await response.json();
-
         if (response.ok) {
-          alert("Sucesso! Sua senha foi alterada. Tente fazer login agora.");
-          document.getElementById("reset-token").value = "";
-          document.getElementById("nova-senha").value = "";
+          avisar("Senha alterada!", "#28a745");
+          document
+            .querySelectorAll(".box input")
+            .forEach((i) => (i.value = ""));
         } else {
-          alert("Erro: " + (data.detail || "Não foi possível resetar"));
+          avisar(data.detail, "#d9534f");
         }
       }
     </script>

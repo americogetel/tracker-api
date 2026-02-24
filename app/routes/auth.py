@@ -24,27 +24,26 @@ def get_db():
         db.close()
 
 async def obter_usuario_atual(request: Request, db: Session = Depends(get_db)):
-    # 1. Tenta buscar o token dentro dos cookies do navegador
+    # 1. Busca o token nos cookies
     token = request.cookies.get("access_token")
 
-    # Se o cookie não existir, o usuário não está logado
     if not token:
         raise HTTPException(
             status_code=401, 
             detail="Não autenticado. Por favor, faça login."
         )
 
-    # 2. Verificar se o token está na blacklist (mesma lógica)
+    # 2. Verifica a Blacklist (Logout)
     token_banido = db.query(database.TokenBlacklist).filter(database.TokenBlacklist.token == token).first()
 
     if token_banido:
         raise HTTPException(
             status_code=401, 
-            detail="Token inválido (Logout já realizado)"
+            detail="Sessão encerrada. Faça login novamente."
         )
 
     try:
-        # 3. Decodificar o JWT
+        # 3. Decodifica o JWT e extrai os dados
         payload = jwt.decode(
             token, 
             security.SECRET_KEY, 
@@ -52,6 +51,8 @@ async def obter_usuario_atual(request: Request, db: Session = Depends(get_db)):
         )
     
         email: str = payload.get("sub")
+        token_version = payload.get("version") # <--- EXTRAI A VERSÃO DO TOKEN
+
         if email is None: 
             raise HTTPException(status_code=401, detail="Token inválido")
 
@@ -61,13 +62,21 @@ async def obter_usuario_atual(request: Request, db: Session = Depends(get_db)):
             detail="Sessão expirada. Faça login novamente."
         )
     
-    # 4. Buscar o usuário no banco
+    # 4. Busca o usuário no banco de dados
     usuario = db.query(database.UsuarioDB).filter(database.UsuarioDB.email == email).first()
 
     if not usuario: 
         raise HTTPException(
             status_code=401, 
             detail="Usuário não encontrado"
+        )
+    
+    # 5. COMPARAÇÃO DE SEGURANÇA (O pulo do gato)
+    # Se a versão no token for diferente da versão no banco, a senha foi alterada
+    if str(token_version) != str(usuario.senha_versao):
+        raise HTTPException(
+            status_code=401, 
+            detail="Senha alterada em outro dispositivo. Por segurança, faça login novamente."
         )
         
     return usuario
@@ -93,7 +102,9 @@ async def register(usuario: schemas.UsuarioCreate, db: Session = Depends(get_db)
     return novo_usuario
 
 @router.post("/login")
+@limiter.limit("5/minute")
 async def login(
+    request: Request,
     response: Response, # Adicionado para carimbar o cookie
     form_data: OAuth2PasswordRequestForm = Depends(), 
     db: Session = Depends(get_db)
@@ -127,7 +138,12 @@ async def login(
     db.commit()
 
     # 4. Criar o Token
-    token = security.criar_token_acesso(dados={"sub": usuario.email})
+    token = security.criar_token_acesso(
+        dados={
+            "sub": usuario.email,
+            "version": usuario.senha_versao
+        }
+    )
 
     # 5. GERAR O COOKIE (A mágica da segurança)
     response.set_cookie(
@@ -177,34 +193,47 @@ async def esqueci_senha(dados: schemas.RecuperarSenhaRequest, db: Session = Depe
 
 @router.post("/resetar-senha")
 async def resetar_senha(dados: schemas.ResetarSenha, db: Session = Depends(get_db)):
+    # 1. Verificar se o TOKEN já foi usado anteriormente (Segurança contra reuso)
+    token_na_blacklist = db.query(database.TokenBlacklist).filter(database.TokenBlacklist.token == dados.token).first()
+    if token_na_blacklist:
+        raise HTTPException(status_code=400, detail="Este link de recuperação já foi utilizado.")
+
     try:
-        # 1. Valida o Token
+        # 2. Valida o Token JWT
         payload = jwt.decode(dados.token, security.SECRET_KEY, algorithms=[security.ALGORITHM])
 
-        # 2. Verifica se o propósito do token é recuperação
+        # 3. Verifica o propósito do token
         if payload.get("purpose") != "password_recovery":
-            raise HTTPException(
-                status_code=400,
-                detail="Token inválido para esta operação"
-            )
+            raise HTTPException(status_code=400, detail="Token inválido para esta operação")
         
         email = payload.get("sub")
 
-        # 3. Busca o usuário e atualiza a senha
+        # 4. Busca o usuário
         usuario = db.query(database.UsuarioDB).filter(database.UsuarioDB.email == email).first()
         if not usuario:
-            raise HTTPException(
-                status_code=404,
-                detail="Usuário não encontrado"
-            )
+            raise HTTPException(status_code=404, detail="Usuário não encontrado")
         
+        # --- ATUALIZAÇÃO SEGURA ---
+        
+        # Atualiza a senha
         usuario.senha_hash = security.gerar_hash_senha(dados.nova_senha)
-        usuario.tentativas_erradas = 0 # Resetar bloqueios
+        
+        # INVALIDA SESSÕES ATIVAS: Muda a versão da senha
+        # Isso fará com que qualquer token antigo (com versão velha) seja rejeitado
+        usuario.senha_versao = str(datetime.utcnow().timestamp()) 
+        
+        # Resetar bloqueios de tentativas
+        usuario.tentativas_erradas = 0 
         usuario.bloqueado_ate = None
 
+        # 5. Adiciona o TOKEN DE RESET na Blacklist (Impede reuso)
+        novo_banido = database.TokenBlacklist(token=dados.token)
+        db.add(novo_banido)
+
         db.commit()
-        return{
-            "msg": "Senha alterada com sucesso! Agora você já pode fazer login."
+        
+        return {
+            "msg": "Senha alterada com sucesso! Todas as sessões antigas foram encerradas."
         }
     
     except JWTError:
@@ -212,3 +241,46 @@ async def resetar_senha(dados: schemas.ResetarSenha, db: Session = Depends(get_d
             status_code=400,
             detail="Token de recuperação inválido ou expirado."
         )
+    
+@router.get("/admin/users")
+async def listar_usuarios_admin(
+    usuario_atual: database.UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db)
+):
+    # Verificação do Nível de Acesso
+    if usuario_atual.role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Acesso proibido: Você não é um administrador."
+        )
+    
+    usuarios = db.query(database.UsuarioDB).all()
+    # Retornamos dados úteis para o painel
+    return[
+        {
+            "id": u.id,
+            "email": u.email,
+            "role": u.role,
+            "tentativas": u.tentativas_erradas,
+            "bloqueado": u.bloqueado_ate is not None and u.bloqueado_ate > datetime.utcnow()
+        } for u in usuarios
+    ]
+
+# Adicione esta rota ao final do seu arquivo auth.py
+
+@router.post("/trocar-senha-perfil")
+async def trocar_senha_perfil(
+    dados: schemas.TrocarSenhaLogado,
+    db: Session = Depends(get_db),
+    usuario_atual: database.UsuarioDB = Depends(obter_usuario_atual)
+):
+    # 1. Verificar senha atual
+    if not security.verificar_senha(dados.senha_atual, usuario_atual.senha_hash):
+        raise HTTPException(status_code=400, detail="Senha atual incorreta")
+
+    # 2. Atualizar senha e versão (para deslogar outros)
+    usuario_atual.senha_hash = security.gerar_hash_senha(dados.nova_senha)
+    usuario_atual.senha_versao = str(datetime.utcnow().timestamp())
+    
+    db.commit()
+    return {"msg": "Senha alterada com sucesso! Faça login novamente."}
