@@ -46,26 +46,28 @@ git clone https://github.com/seu-usuario/tracker-api.git
 cd tracker-api
 ```
 
-### 2 Criar e Ativar Ambiente Virtual
+### 2️⃣ Criar e Ativar Ambiente Virtual
 
 ```bash
 python -m venv .venv
 .venv\Scripts\active
 ```
 
-### 3 Instalar Dependências
+### 3️⃣ Instalar Dependências
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4
+### 4️⃣ Configure as variáveis de ambiente
 
+```bash
 SECRET_KEY=sua_chave_secreta_super_segura
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
+```
 
-### 5
+### 5️⃣ Execute a aplicação
 
 ```bash
 uvicorn app.main:app --reload
