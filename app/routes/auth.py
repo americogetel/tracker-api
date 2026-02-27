@@ -152,7 +152,8 @@ async def login(
         httponly=True,   # JavaScript não acessa! (Protege contra XSS)
         max_age=1800,    # 30 minutos
         samesite="lax",  # Protege contra CSRF
-        secure=False     # Mude para True se usar HTTPS (o navegador exige)
+        secure=False,
+        path="/"     # Mude para True se usar HTTPS (o navegador exige)
     )
 
     return {"msg": "Login realizado com sucesso"}
@@ -185,7 +186,7 @@ async def esqueci_senha(dados: schemas.RecuperarSenhaRequest, db: Session = Depe
     if usuario:
         token = security.criar_token_recuperacao(usuario.email)
         # Aqui enviaremos o e-mail real. Por enquanto vamos simular:
-        link_recuperacao = f"https://127.0.0.1:8000/auth/resetar-senha?token={token}"
+        link_recuperacao = f"http://localhost:5173/reset-password?token={token}"
         print(f"\n--- E-MAIL ENVIADO PARA {usuario.email} --\nLink: {link_recuperacao}\n----------------\n")
     return{
         "msg": "Se o e-mail existir, um link de recuperação foi enviado."
